@@ -14,7 +14,8 @@ public class Ticket {
         this.remainingQuantity = totalQuantity;
     }
 
-    public void issue() { // 잔여 수량 존재 시 티켓 수 -1
+    public synchronized void issue() { // 잔여 수량 존재 시 티켓 수 -1
+        // synchronized 추가 
         if (remainingQuantity <= 0) {
             throw new OutOfStockException();
         }
