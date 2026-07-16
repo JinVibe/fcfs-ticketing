@@ -19,9 +19,11 @@ class TicketConcurrencyTest {
     @Test
     void synchronizedIssuePreventsOverselling() throws InterruptedException {
         Ticket ticket = new Ticket(INITIAL_QUANTITY);
+        // test에서는 정확한 값 측정을 위해 AtomicInteger 사용
         AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failureCount = new AtomicInteger();
         ExecutorService executorService = Executors.newFixedThreadPool(WORKER_COUNT);
+        // 스레드 실행 시점 조절
         CountDownLatch readyLatch = new CountDownLatch(WORKER_COUNT);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(WORKER_COUNT);

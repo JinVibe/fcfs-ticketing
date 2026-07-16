@@ -1,9 +1,22 @@
 package jin.project.ticketing.Domain;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+@Entity
 public class Ticket {
 
-    private final int totalQuantity; // 총 티켓 수
-    private int remainingQuantity; // 잔여 티켓 수
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private int totalQuantity;
+    private int remainingQuantity;
+
+    protected Ticket() {
+    }
 
     public Ticket(int totalQuantity) {
         if (totalQuantity < 0) {
@@ -29,5 +42,9 @@ public class Ticket {
 
     public int getRemainingQuantity() {
         return remainingQuantity;
+    }
+
+    public Long getId() {
+        return id;
     }
 }
