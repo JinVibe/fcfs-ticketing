@@ -14,7 +14,7 @@ public class TicketService {
 
     @Transactional
     public void issueTicket(Long ticketId) {
-        Ticket ticket = ticketRepository.findById(ticketId)
+        Ticket ticket = ticketRepository.findByIdWithPessimisticLock(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("티켓을 찾을 수 없습니다."));
 
         ticket.issue();
