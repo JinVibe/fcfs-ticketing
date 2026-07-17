@@ -11,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -31,7 +32,7 @@ class TicketServiceConcurrencyTest {
     }
 
     @Test
-    void concurrentIssueCausesDatabaseRaceCondition() throws InterruptedException {
+    void pessimisticLockPreventsOverselling() throws InterruptedException {
         Ticket ticket = ticketRepository.save(new Ticket(INITIAL_QUANTITY));
         AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failureCount = new AtomicInteger();
@@ -67,13 +68,9 @@ class TicketServiceConcurrencyTest {
         }
 
         Ticket persistedTicket = ticketRepository.findById(ticket.getId()).orElseThrow();
-        boolean raceConditionDetected =
-                successCount.get() > INITIAL_QUANTITY
-                        || persistedTicket.getRemainingQuantity() != 0;
 
-        assertTrue(
-                raceConditionDetected,
-                "DB 동시 발급 과정에서 Race Condition이 관찰되지 않았습니다."
-        );
+        assertEquals(10, successCount.get());
+        assertEquals(90, failureCount.get());
+        assertEquals(0, persistedTicket.getRemainingQuantity());
     }
 }
