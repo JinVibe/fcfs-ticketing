@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -11,17 +12,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-class TicketServiceConcurrencyTest {
+class TicketOptimisticLockServiceConcurrencyTest {
 
-    private static final int INITIAL_QUANTITY = 10;
+    private static final int INITIAL_QUANTITY = 100;
     private static final int WORKER_COUNT = 100;
 
     @Autowired
-    private TicketService ticketService;
+    private TicketOptimisticLockService ticketOptimisticLockService;
 
     @Autowired
     private TicketRepository ticketRepository;
@@ -32,10 +32,10 @@ class TicketServiceConcurrencyTest {
     }
 
     @Test
-    void pessimisticLockPreventsOverselling() throws InterruptedException {
+    void concurrentIssueCausesOptimisticLockConflict() throws InterruptedException {
         Ticket ticket = ticketRepository.save(new Ticket(INITIAL_QUANTITY));
         AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failureCount = new AtomicInteger();
+        AtomicInteger conflictCount = new AtomicInteger();
         ExecutorService executorService = Executors.newFixedThreadPool(WORKER_COUNT);
         CountDownLatch readyLatch = new CountDownLatch(WORKER_COUNT);
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -48,10 +48,10 @@ class TicketServiceConcurrencyTest {
 
                     try {
                         startLatch.await();
-                        ticketService.issueTicket(ticket.getId());
+                        ticketOptimisticLockService.issueTicket(ticket.getId());
                         successCount.incrementAndGet();
-                    } catch (OutOfStockException exception) {
-                        failureCount.incrementAndGet();
+                    } catch (ObjectOptimisticLockingFailureException exception) {
+                        conflictCount.incrementAndGet();
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
                     } finally {
@@ -67,10 +67,7 @@ class TicketServiceConcurrencyTest {
             executorService.shutdownNow();
         }
 
-        Ticket persistedTicket = ticketRepository.findById(ticket.getId()).orElseThrow();
-
-        assertEquals(10, successCount.get());
-        assertEquals(90, failureCount.get());
-        assertEquals(0, persistedTicket.getRemainingQuantity());
+        assertTrue(successCount.get() < WORKER_COUNT);
+        assertTrue(conflictCount.get() > 0);
     }
 }

@@ -15,13 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-class TicketServiceConcurrencyTest {
+class TicketOptimisticLockFacadeConcurrencyTest {
 
     private static final int INITIAL_QUANTITY = 10;
     private static final int WORKER_COUNT = 100;
 
     @Autowired
-    private TicketService ticketService;
+    private TicketOptimisticLockFacade ticketOptimisticLockFacade;
 
     @Autowired
     private TicketRepository ticketRepository;
@@ -32,10 +32,11 @@ class TicketServiceConcurrencyTest {
     }
 
     @Test
-    void pessimisticLockPreventsOverselling() throws InterruptedException {
+    void retryPreventsOverselling() throws InterruptedException {
         Ticket ticket = ticketRepository.save(new Ticket(INITIAL_QUANTITY));
         AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failureCount = new AtomicInteger();
+        AtomicInteger outOfStockCount = new AtomicInteger();
+        AtomicInteger unexpectedFailureCount = new AtomicInteger();
         ExecutorService executorService = Executors.newFixedThreadPool(WORKER_COUNT);
         CountDownLatch readyLatch = new CountDownLatch(WORKER_COUNT);
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -48,12 +49,14 @@ class TicketServiceConcurrencyTest {
 
                     try {
                         startLatch.await();
-                        ticketService.issueTicket(ticket.getId());
+                        ticketOptimisticLockFacade.issueTicket(ticket.getId());
                         successCount.incrementAndGet();
                     } catch (OutOfStockException exception) {
-                        failureCount.incrementAndGet();
+                        outOfStockCount.incrementAndGet();
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
+                    } catch (RuntimeException exception) {
+                        unexpectedFailureCount.incrementAndGet();
                     } finally {
                         doneLatch.countDown();
                     }
@@ -70,7 +73,8 @@ class TicketServiceConcurrencyTest {
         Ticket persistedTicket = ticketRepository.findById(ticket.getId()).orElseThrow();
 
         assertEquals(10, successCount.get());
-        assertEquals(90, failureCount.get());
+        assertEquals(90, outOfStockCount.get());
+        assertEquals(0, unexpectedFailureCount.get());
         assertEquals(0, persistedTicket.getRemainingQuantity());
     }
 }
